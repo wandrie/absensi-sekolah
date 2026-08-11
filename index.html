@@ -193,20 +193,27 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
 
     // HELPER API CALL VIA FETCH
-    async function callApi(payload) {
-      try {
-        const response = await fetch(GAS_URL, {
-          method: "POST",
-          mode: "cors",
-          redirect: "follow",
-          headers: {
-            "Content-Type": "text/plain;charset=utf-8"
-          },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP Error Status: ${response.status}`);
+      async function callApi(payload) {
+        try {
+          // Mengubah payload menjadi format URL-encoded form data
+          const formData = new URLSearchParams();
+          formData.append("data", JSON.stringify(payload));
+      
+          const response = await fetch(GAS_URL, {
+            method: "POST",
+            body: formData
+          });
+      
+          if (!response.ok) {
+            throw new Error(`HTTP Error Status: ${response.status}`);
+          }
+      
+          return await response.json();
+        } catch (err) {
+          console.error("API Error:", err);
+          return { success: false, message: "Gagal terhubung ke server Google Script." };
         }
+      }
         return await response.json();
       } catch (err) {
         return { success: false, message: "Gagal terhubung ke server Google Script." };
