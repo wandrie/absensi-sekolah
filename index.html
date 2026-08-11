@@ -3,18 +3,449 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aplikasi Absensi Sekolah</title>
-  <style>
-    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-    iframe { width: 100%; height: 100%; border: none; }
-  </style>
+  <title>Sistem Absensi Sekolah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
-  <!-- Atribut allow="camera" di bawah ini berfungsi untuk MEMBUKA BLOKIR kamera live -->
-  <iframe 
-    src="https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec" 
-    allow="camera; microphone; geolocation" 
-    allowfullscreen>
-  </iframe>
+<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+
+  <!-- LOGIN CONTAINER -->
+  <div id="loginSection" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-95">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+      <div class="text-center mb-6">
+        <i class="fa-solid fa-school text-5xl text-blue-600 mb-2"></i>
+        <h2 class="text-2xl font-bold text-gray-800">Login Sistem Absensi</h2>
+        <p class="text-sm text-gray-500">Silakan masuk menggunakan akun sekolah</p>
+      </div>
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-semibold mb-2">Username</label>
+          <input type="text" id="loginUser" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="mb-6">
+          <label class="block text-gray-700 text-sm font-semibold mb-2">Password</label>
+          <div class="relative">
+            <input type="password" id="loginPass" required class="w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button type="button" onclick="togglePassword('loginPass', 'eyeIconLogin')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700">
+              <i id="eyeIconLogin" class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" id="btnLogin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition duration-200">Masuk</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div id="appSection" class="hidden flex-grow flex flex-col">
+    <!-- NAVBAR -->
+    <nav class="bg-blue-900 text-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/9/9c/Logo_Tut_Wuri_Handayani.png" alt="Kemendikbud" class="h-10">
+          <div>
+            <h1 id="navTitle" class="font-bold text-lg leading-tight">Nama Sekolah</h1>
+            <span class="text-xs text-blue-200">Sistem Presensi Digital</span>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <img id="navLogo" src="" alt="Profil Sekolah" class="h-10 w-10 rounded-full object-cover border-2 border-white">
+          <button onclick="toggleModal('modalSettings')" class="hover:text-blue-300"><i class="fa-solid fa-gear text-lg"></i></button>
+          <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-semibold"><i class="fa-solid fa-right-from-bracket mr-1"></i>Logout</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- NAVIGATION MENU -->
+    <div class="bg-white border-b shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 flex space-x-4">
+        <button onclick="switchTab('scan')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600" id="btn-scan"><i class="fa-solid fa-qrcode mr-2"></i>Scan QR</button>
+        <button onclick="switchTab('rekap')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent hover:text-blue-600" id="btn-rekap"><i class="fa-solid fa-list-check mr-2"></i>Rekap Absensi</button>
+        <button onclick="switchTab('siswa')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent hover:text-blue-600" id="btn-siswa"><i class="fa-solid fa-user-graduate mr-2"></i>Data Siswa</button>
+      </div>
+    </div>
+
+    <!-- CONTENT BODY -->
+    <div class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+      
+      <!-- TAB 1: AUTOMATIC CAMERA SCANNER -->
+      <div id="tab-scan" class="tab-content">
+        <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow border text-center">
+          <h3 class="text-lg font-bold mb-1 text-gray-800">Scan QR Code Siswa</h3>
+          <p class="text-xs text-gray-500 mb-4">Arahkan QR Code ke area kamera, sistem akan membaca secara otomatis</p>
+          
+          <div id="qr-reader" class="w-full rounded-lg overflow-hidden border bg-black mb-4 min-h-[250px]"></div>
+
+          <div class="flex justify-center gap-2 mb-2">
+            <button id="btnStartCam" onclick="startAutoScanner()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-sm transition">
+              <i class="fa-solid fa-camera mr-1"></i> Aktifkan Kamera
+            </button>
+            <button id="btnStopCam" onclick="stopAutoScanner()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-sm transition hidden">
+              <i class="fa-solid fa-video-slash mr-1"></i> Matikan Kamera
+            </button>
+          </div>
+
+          <div id="scanResult" class="mt-4 p-4 rounded-lg hidden"></div>
+        </div>
+      </div>
+
+      <!-- TAB 2: REKAP ABSENSI -->
+      <div id="tab-rekap" class="tab-content hidden">
+        <div class="bg-white p-6 rounded-xl shadow border">
+          <div class="flex flex-wrap gap-4 mb-4">
+            <input type="date" id="filterTanggal" onchange="loadRekap()" class="border px-3 py-2 rounded-lg text-sm">
+            <button onclick="loadRekap()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fa-solid fa-filter mr-1"></i>Filter</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-gray-100 border-b">
+                <tr>
+                  <th class="p-3">Tanggal</th>
+                  <th class="p-3">Jam</th>
+                  <th class="p-3">NISN</th>
+                  <th class="p-3">Nama</th>
+                  <th class="p-3">Kelas</th>
+                  <th class="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody id="rekapTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: DATA SISWA -->
+      <div id="tab-siswa" class="tab-content hidden">
+        <div class="bg-white p-6 rounded-xl shadow border">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">Daftar Siswa</h3>
+            <button onclick="openModalSiswa()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fa-solid fa-plus mr-1"></i>Tambah Siswa</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-gray-100 border-b">
+                <tr>
+                  <th class="p-3">Foto</th>
+                  <th class="p-3">NISN</th>
+                  <th class="p-3">Nama</th>
+                  <th class="p-3">Kelas</th>
+                  <th class="p-3">No. Wali</th>
+                  <th class="p-3">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="siswaTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-800 text-white text-center py-4 text-xs mt-auto">
+      <p>&copy; 2026 Sistem Informasi Absensi Sekolah. Powered by Google Apps Script.</p>
+    </footer>
+  </div>
+
+  <!-- MODAL PENGATURAN -->
+  <div id="modalSettings" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full">
+      <h3 class="font-bold mb-4">Pengaturan Profil</h3>
+      <form onsubmit="saveSettings(event)">
+        <label class="block text-xs font-semibold mb-1">URL Logo Sekolah Baru</label>
+        <input type="text" id="setLogo" class="w-full border px-3 py-2 rounded mb-3 text-sm">
+        <label class="block text-xs font-semibold mb-1">Password Baru</label>
+        <div class="relative mb-4">
+          <input type="password" id="setPass" class="w-full border px-3 py-2 pr-10 rounded text-sm">
+          <button type="button" onclick="togglePassword('setPass', 'eyeIconSet')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700">
+            <i id="eyeIconSet" class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="button" onclick="toggleModal('modalSettings')" class="px-3 py-1 bg-gray-300 rounded text-sm">Batal</button>
+          <button type="submit" class="px-3 py-1 bg-blue-600 text-white rounded text-sm">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL SISWA -->
+  <div id="modalSiswa" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+      <h3 class="font-bold mb-4" id="modalSiswaTitle">Form Data Siswa</h3>
+      <form onsubmit="handleSaveSiswa(event)">
+        <input type="text" id="sNisn" placeholder="NISN" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
+        <input type="text" id="sNama" placeholder="Nama Lengkap" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
+        <input type="text" id="sKelas" placeholder="Kelas" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
+        <input type="text" id="sWali" placeholder="No WhatsApp Wali (misal: 62812...)" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
+        <input type="text" id="sFoto" placeholder="URL Foto Siswa" class="w-full border px-3 py-2 rounded mb-4 text-sm">
+        <div class="flex justify-end space-x-2">
+          <button type="button" onclick="toggleModal('modalSiswa')" class="px-3 py-1 bg-gray-300 rounded text-sm">Batal</button>
+          <button type="submit" class="px-3 py-1 bg-blue-600 text-white rounded text-sm">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // CONFIG: Tautan Deploy Web App Google Apps Script Anda
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
+
+    // HELPER API CALL VIA FETCH
+    async function callApi(payload) {
+      try {
+        const response = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        return await response.json();
+      } catch (err) {
+        return { success: false, message: "Gagal terhubung ke server Google Script." };
+      }
+    }
+
+    // TOGGLE PASSWORD VISIBILITY
+    function togglePassword(inputId, iconId) {
+      const input = document.getElementById(inputId);
+      const icon = document.getElementById(iconId);
+      if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+      } else {
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+      }
+    }
+
+    // AUTHENTICATION
+    async function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('loginUser').value;
+      const p = document.getElementById('loginPass').value;
+      const btn = document.getElementById('btnLogin');
+      
+      btn.innerText = "Proses...";
+      btn.disabled = true;
+
+      const res = await callApi({ action: 'login', username: u, password: p });
+      
+      btn.innerText = "Masuk";
+      btn.disabled = false;
+
+      if (res.success) {
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('appSection').classList.remove('hidden');
+        initApp();
+      } else {
+        alert(res.message);
+      }
+    }
+
+    function logout() {
+      stopAutoScanner();
+      document.getElementById('appSection').classList.add('hidden');
+      document.getElementById('loginSection').classList.remove('hidden');
+    }
+
+    async function initApp() {
+      const info = await callApi({ action: 'getAppInfo' });
+      if (info.success) {
+        document.getElementById('navTitle').innerText = info.namaSekolah;
+        document.getElementById('navLogo').src = info.logoUrl;
+      }
+      
+      loadSiswa();
+      loadRekap();
+      startAutoScanner();
+    }
+
+    // TAB NAVIGATION
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-blue-600', 'text-blue-600');
+        el.classList.add('border-transparent');
+      });
+      
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      document.getElementById(`btn-${tabName}`).classList.add('border-blue-600', 'text-blue-600');
+
+      if (tabName === 'scan') {
+        startAutoScanner();
+      } else {
+        stopAutoScanner();
+      }
+    }
+
+    // AUTOMATIC LIVE SCANNER LOGIC
+    let html5QrCode = null;
+    let isProcessing = false;
+
+    function startAutoScanner() {
+      if (html5QrCode && html5QrCode.isScanning) return;
+
+      html5QrCode = new Html5Qrcode("qr-reader");
+      const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+
+      html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+      ).then(() => {
+        document.getElementById('btnStartCam').classList.add('hidden');
+        document.getElementById('btnStopCam').classList.remove('hidden');
+      }).catch(err => {
+        console.warn("Kamera terblokir/tidak tersedia:", err);
+      });
+    }
+
+    async function onScanSuccess(decodedText) {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      playBeepSound();
+
+      const res = await callApi({ action: 'processScan', nisn: decodedText });
+      const resDiv = document.getElementById('scanResult');
+      resDiv.classList.remove('hidden');
+      
+      if (res.success) {
+        resDiv.className = "mt-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-300 font-bold";
+        resDiv.innerHTML = `Berhasil Absen!<br>${res.siswa.nama} (${res.siswa.kelas})<br><span class="text-xs font-normal">${res.notifStatus}</span>`;
+        loadRekap();
+      } else {
+        resDiv.className = "mt-4 p-4 rounded-lg bg-red-100 text-red-800 border border-red-300 font-bold";
+        resDiv.innerHTML = res.message;
+      }
+
+      setTimeout(() => {
+        isProcessing = false;
+        resDiv.classList.add('hidden');
+      }, 3000);
+    }
+
+    function stopAutoScanner() {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          document.getElementById('btnStartCam').classList.remove('hidden');
+          document.getElementById('btnStopCam').classList.add('hidden');
+        }).catch(err => console.error(err));
+      }
+    }
+
+    function playBeepSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch (e) {}
+    }
+
+    // DATA SISWA
+    async function loadSiswa() {
+      const res = await callApi({ action: 'getSiswaData' });
+      if (res.success) {
+        const tbody = document.getElementById('siswaTableBody');
+        tbody.innerHTML = '';
+        res.data.forEach(s => {
+          tbody.innerHTML += `
+            <tr class="border-b">
+              <td class="p-3"><img src="${s[4] || 'https://via.placeholder.com/40'}" class="w-8 h-8 rounded-full object-cover"></td>
+              <td class="p-3">${s[0]}</td>
+              <td class="p-3 font-semibold">${s[1]}</td>
+              <td class="p-3">${s[2]}</td>
+              <td class="p-3">${s[3]}</td>
+              <td class="p-3">
+                <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4]}')" class="text-blue-600"><i class="fa-solid fa-pen"></i></button>
+              </td>
+            </tr>`;
+        });
+      }
+    }
+
+    async function handleSaveSiswa(e) {
+      e.preventDefault();
+      const payload = {
+        nisn: document.getElementById('sNisn').value,
+        nama: document.getElementById('sNama').value,
+        kelas: document.getElementById('sKelas').value,
+        noWali: document.getElementById('sWali').value,
+        foto: document.getElementById('sFoto').value
+      };
+      
+      const res = await callApi({ action: 'saveSiswa', payload: payload });
+      if (res.success) {
+        toggleModal('modalSiswa');
+        loadSiswa();
+      }
+    }
+
+    function openModalSiswa() {
+      document.getElementById('sNisn').value = '';
+      document.getElementById('sNama').value = '';
+      document.getElementById('sKelas').value = '';
+      document.getElementById('sWali').value = '';
+      document.getElementById('sFoto').value = '';
+      toggleModal('modalSiswa');
+    }
+
+    function editSiswa(nisn, nama, kelas, wali, foto) {
+      document.getElementById('sNisn').value = nisn;
+      document.getElementById('sNama').value = nama;
+      document.getElementById('sKelas').value = kelas;
+      document.getElementById('sWali').value = wali;
+      document.getElementById('sFoto').value = foto;
+      toggleModal('modalSiswa');
+    }
+
+    // REKAP
+    async function loadRekap() {
+      const filterTgl = document.getElementById('filterTanggal').value;
+      const res = await callApi({ action: 'getAbsensiData' });
+      if (res.success) {
+        const tbody = document.getElementById('rekapTableBody');
+        tbody.innerHTML = '';
+        res.data.forEach(r => {
+          const tglStr = new Date(r[1]).toISOString().split('T')[0];
+          if(!filterTgl || filterTgl === tglStr) {
+            tbody.innerHTML += `
+              <tr class="border-b">
+                <td class="p-3">${tglStr}</td>
+                <td class="p-3">${r[3]}</td>
+                <td class="p-3">${r[4]}</td>
+                <td class="p-3 font-semibold">${r[5]}</td>
+                <td class="p-3">${r[6]}</td>
+                <td class="p-3"><span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded">${r[7]}</span></td>
+              </tr>`;
+          }
+        });
+      }
+    }
+
+    // MODALS
+    function toggleModal(id) {
+      document.getElementById(id).classList.toggle('hidden');
+    }
+
+    async function saveSettings(e) {
+      e.preventDefault();
+      const logo = document.getElementById('setLogo').value;
+      const pass = document.getElementById('setPass').value;
+      
+      const res = await callApi({ action: 'updateProfile', logo: logo, pass: pass });
+      if (res.success) {
+        toggleModal('modalSettings');
+        initApp();
+      }
+    }
+  </script>
 </body>
 </html>
