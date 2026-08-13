@@ -149,7 +149,7 @@
   </div>
 
   <!-- MODAL PENGATURAN -->
-  <div id="modalSettings" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4">
+  <div id="modalSettings" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-lg p-6 max-w-sm w-full">
       <h3 class="font-bold mb-4">Pengaturan Profil</h3>
       <form onsubmit="saveSettings(event)">
@@ -170,8 +170,8 @@
     </div>
   </div>
 
-  <!-- MODAL SISWA -->
-  <div id="modalSiswa" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4">
+  <!-- MODAL SISWA (INPUT UPLOAD FOTO) -->
+  <div id="modalSiswa" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-lg p-6 max-w-md w-full">
       <h3 class="font-bold mb-4" id="modalSiswaTitle">Form Data Siswa</h3>
       <form onsubmit="handleSaveSiswa(event)">
@@ -179,10 +179,18 @@
         <input type="text" id="sNama" placeholder="Nama Lengkap" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
         <input type="text" id="sKelas" placeholder="Kelas" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
         <input type="text" id="sWali" placeholder="No WhatsApp Wali (misal: 62812...)" required class="w-full border px-3 py-2 rounded mb-2 text-sm">
-        <input type="text" id="sFoto" placeholder="URL Foto Siswa" class="w-full border px-3 py-2 rounded mb-4 text-sm">
+        
+        <!-- COMPONENT UPLOAD FOTO & PREVIEW -->
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Foto Siswa</label>
+        <div class="flex items-center space-x-3 mb-4">
+          <img id="sFotoPreview" src="https://via.placeholder.com/60" class="w-14 h-14 rounded-full object-cover border">
+          <input type="file" id="sFotoFile" accept="image/*" onchange="previewImage(this)" class="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+        </div>
+        <input type="hidden" id="sFotoUrlLama">
+
         <div class="flex justify-end space-x-2">
           <button type="button" onclick="toggleModal('modalSiswa')" class="px-3 py-1 bg-gray-300 rounded text-sm">Batal</button>
-          <button type="submit" class="px-3 py-1 bg-blue-600 text-white rounded text-sm">Simpan</button>
+          <button type="submit" id="btnSaveSiswa" class="px-3 py-1 bg-blue-600 text-white rounded text-sm">Simpan</button>
         </div>
       </form>
     </div>
@@ -214,6 +222,27 @@
         console.error("Network Error:", err);
         return { success: false, message: "Gagal terhubung ke server Google Script." };
       }
+    }
+
+    // PREVIEW FOTO
+    function previewImage(input) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('sFotoPreview').src = e.target.result;
+        }
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    // KONVERSI BERKAS FOTO KE BASE64
+    function convertFileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+      });
     }
 
     // TOGGLE PASSWORD VISIBILITY
@@ -389,27 +418,53 @@
               <td class="p-3">${s[2]}</td>
               <td class="p-3">${s[3]}</td>
               <td class="p-3">
-                <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4]}')" class="text-blue-600"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4]}')" class="text-blue-600 hover:text-blue-800"><i class="fa-solid fa-pen"></i></button>
               </td>
             </tr>`;
         });
       }
     }
 
+    // PERBAIKAN: HANDLER SIMPAN SISWA (SUPPORT BASE64 UPLOAD)
     async function handleSaveSiswa(e) {
       e.preventDefault();
+      
+      const btn = document.getElementById('btnSaveSiswa');
+      btn.disabled = true;
+      btn.innerText = "Mengunggah...";
+
+      const fileInput = document.getElementById('sFotoFile');
+      let fotoData = document.getElementById('sFotoUrlLama').value;
+
+      if (fileInput.files.length > 0) {
+        try {
+          fotoData = await convertFileToBase64(fileInput.files[0]);
+        } catch (err) {
+          alert("Gagal membaca berkas foto.");
+          btn.disabled = false;
+          btn.innerText = "Simpan";
+          return;
+        }
+      }
+
       const payload = {
         nisn: document.getElementById('sNisn').value,
         nama: document.getElementById('sNama').value,
         kelas: document.getElementById('sKelas').value,
         noWali: document.getElementById('sWali').value,
-        foto: document.getElementById('sFoto').value
+        foto: fotoData
       };
       
       const res = await callApi({ action: 'saveSiswa', payload: payload });
+      
+      btn.disabled = false;
+      btn.innerText = "Simpan";
+
       if (res && res.success) {
         toggleModal('modalSiswa');
         loadSiswa();
+      } else {
+        alert("Gagal menyimpan data: " + (res ? res.message : "Error tidak diketahui"));
       }
     }
 
@@ -418,7 +473,9 @@
       document.getElementById('sNama').value = '';
       document.getElementById('sKelas').value = '';
       document.getElementById('sWali').value = '';
-      document.getElementById('sFoto').value = '';
+      document.getElementById('sFotoUrlLama').value = '';
+      document.getElementById('sFotoFile').value = '';
+      document.getElementById('sFotoPreview').src = 'https://via.placeholder.com/60';
       toggleModal('modalSiswa');
     }
 
@@ -427,7 +484,9 @@
       document.getElementById('sNama').value = nama;
       document.getElementById('sKelas').value = kelas;
       document.getElementById('sWali').value = wali;
-      document.getElementById('sFoto').value = foto;
+      document.getElementById('sFotoUrlLama').value = foto || '';
+      document.getElementById('sFotoFile').value = '';
+      document.getElementById('sFotoPreview').src = foto || 'https://via.placeholder.com/60';
       toggleModal('modalSiswa');
     }
 
