@@ -130,10 +130,36 @@
       <!-- TAB 2: REKAP ABSENSI -->
       <div id="tab-rekap" class="tab-content hidden">
         <div class="bg-white p-6 rounded-xl shadow border">
-          <div class="flex flex-wrap gap-4 mb-4">
-            <input type="date" id="filterTanggal" onchange="loadRekap()" class="border px-3 py-2 rounded-lg text-sm">
-            <button onclick="loadRekap()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fa-solid fa-filter mr-1"></i>Filter</button>
+          
+          <!-- FILTER & BARIS AKSI -->
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+              
+              <!-- Filter Rentang Tanggal -->
+              <div class="flex items-center space-x-2">
+                <input type="date" id="filterStart" onchange="loadRekap()" class="border px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <span class="text-xs text-gray-500 font-medium">s/d</span>
+                <input type="date" id="filterEnd" onchange="loadRekap()" class="border px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+              </div>
+
+              <!-- Filter Kelas -->
+              <select id="filterKelas" onchange="loadRekap()" class="border px-3 py-2 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+                <option value="">Semua Kelas</option>
+              </select>
+
+              <!-- Tombol Reset Filter -->
+              <button onclick="resetFilterRekap()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2 rounded-lg text-sm transition">
+                <i class="fa-solid fa-rotate-left mr-1"></i> Reset
+              </button>
+            </div>
+
+            <!-- Tombol Download Laporan Excel -->
+            <button onclick="downloadRekapExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm flex items-center">
+              <i class="fa-solid fa-file-excel mr-2 text-base"></i> Download Excel
+            </button>
           </div>
+
+          <!-- TABEL ABSENSI -->
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
               <thead class="bg-gray-100 border-b">
@@ -180,9 +206,8 @@
     </div>
 
     <!-- FOOTER -->
-    <footer class="bg-slate-800 text-white text-center py-4 text-xs mt-auto">
-      <p>Powered by tiba-tiba S.Kom</p>
-      <p class="text-slate-400 mt-1">&copy; 2026</p>
+    <footer class="bg-slate-800 text-white text-center py-3 text-xs mt-auto">
+      <p>&copy; 2026 — <span class="text-slate-400">Powered by tiba-tiba S.Kom</span></p>
     </footer>
   </div>
 
@@ -237,6 +262,8 @@
   <script>
     // CONFIG URL Web App Google Apps Script
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
+
+    let currentRekapData = []; // Array simpan data rekap aktif untuk ekspor CSV
 
     // FUNCTION UNTUK TOGGLE HAMBURGER MENU
     function toggleSideMenu() {
@@ -462,8 +489,8 @@
         tbody.innerHTML = '';
         res.data.forEach(s => {
           tbody.innerHTML += `
-            <tr class="border-b">
-              <td class="p-3"><img src="${s[4] || 'https://via.placeholder.com/40'}" class="w-8 h-8 rounded-full object-cover"></td>
+            <tr class="border-b hover:bg-gray-50">
+              <td class="p-3"><img src="${s[4] || 'https://via.placeholder.com/40'}" class="w-8 h-8 rounded-full object-cover border"></td>
               <td class="p-3">${s[0]}</td>
               <td class="p-3 font-semibold">${s[1]}</td>
               <td class="p-3">${s[2]}</td>
@@ -541,28 +568,123 @@
       toggleModal('modalSiswa');
     }
 
-    // REKAP ABSENSI
+    // HELPER FORMAT JAM (Menghindari String 1899-12-30T...)
+    function formatJamDisplay(rawJam) {
+      if (!rawJam) return '-';
+      let str = String(rawJam);
+      
+      if (str.includes('T')) {
+        let dateObj = new Date(str);
+        if (!isNaN(dateObj.getTime())) {
+          return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+      }
+      return str;
+    }
+
+    // REKAP ABSENSI & DYNAMIC FILTER KELAS
     async function loadRekap() {
-      const filterTgl = document.getElementById('filterTanggal').value;
+      const startTgl = document.getElementById('filterStart').value;
+      const endTgl = document.getElementById('filterEnd').value;
+      const filterKelasVal = document.getElementById('filterKelas').value;
+
       const res = await callApi({ action: 'getAbsensiData' });
       if (res && res.success) {
         const tbody = document.getElementById('rekapTableBody');
         tbody.innerHTML = '';
+        currentRekapData = [];
+
+        // Dynamic Populate Opsi Kelas di Dropdown Filter
+        const classSelect = document.getElementById('filterKelas');
+        const setKelas = new Set();
+
         res.data.forEach(r => {
-          const tglStr = new Date(r[1]).toISOString().split('T')[0];
-          if(!filterTgl || filterTgl === tglStr) {
+          if (r[6]) setKelas.add(r[6]); // r[6] = Kolom Kelas
+        });
+
+        const selectedKelas = classSelect.value;
+        classSelect.innerHTML = '<option value="">Semua Kelas</option>';
+        Array.from(setKelas).sort().forEach(k => {
+          classSelect.innerHTML += `<option value="${k}" ${String(k) === String(selectedKelas) ? 'selected' : ''}>Kelas ${k}</option>`;
+        });
+
+        // Loop Filter Data Absensi
+        res.data.forEach(r => {
+          let tglStr = "";
+          try {
+            tglStr = new Date(r[2]).toISOString().split('T')[0];
+          } catch(e) {
+            tglStr = String(r[2]);
+          }
+
+          const jamStr = formatJamDisplay(r[3]);
+          const nisn = r[4];
+          const nama = r[5];
+          const kelas = r[6];
+          const status = r[7];
+
+          // Validasi Rentang Tanggal
+          const matchStart = !startTgl || tglStr >= startTgl;
+          const matchEnd = !endTgl || tglStr <= endTgl;
+          // Validasi Kelas
+          const matchKelas = !filterKelasVal || String(kelas) === String(filterKelasVal);
+
+          if (matchStart && matchEnd && matchKelas) {
+            const rowData = { tgl: tglStr, jam: jamStr, nisn, nama, kelas, status };
+            currentRekapData.push(rowData);
+
             tbody.innerHTML += `
-              <tr class="border-b">
+              <tr class="border-b hover:bg-gray-50">
                 <td class="p-3">${tglStr}</td>
-                <td class="p-3">${r[3]}</td>
-                <td class="p-3">${r[4]}</td>
-                <td class="p-3 font-semibold">${r[5]}</td>
-                <td class="p-3">${r[6]}</td>
-                <td class="p-3"><span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded">${r[7]}</span></td>
+                <td class="p-3">${jamStr}</td>
+                <td class="p-3">${nisn}</td>
+                <td class="p-3 font-semibold">${nama}</td>
+                <td class="p-3">${kelas}</td>
+                <td class="p-3"><span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">${status}</span></td>
               </tr>`;
           }
         });
+
+        if (currentRekapData.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 text-sm">Tidak ada data absensi pada periode/kelas ini.</td></tr>`;
+        }
       }
+    }
+
+    // RESET FILTER REKAP
+    function resetFilterRekap() {
+      document.getElementById('filterStart').value = '';
+      document.getElementById('filterEnd').value = '';
+      document.getElementById('filterKelas').value = '';
+      loadRekap();
+    }
+
+    // EKSPOR LAPORAN KE EXCEL/CSV
+    function downloadRekapExcel() {
+      if (currentRekapData.length === 0) {
+        alert("Tidak ada data rekap yang dapat diunduh.");
+        return;
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
+      csvContent += "Tanggal,Jam,NISN,Nama,Kelas,Status\n";
+
+      currentRekapData.forEach(row => {
+        csvContent += `"${row.tgl}","${row.jam}","'${row.nisn}","${row.nama}","${row.kelas}","${row.status}"\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      
+      const start = document.getElementById('filterStart').value || 'Awal';
+      const end = document.getElementById('filterEnd').value || 'Akhir';
+      const kelas = document.getElementById('filterKelas').value ? `_Kelas_${document.getElementById('filterKelas').value}` : '';
+
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Laporan_Absensi_${start}_s.d_${end}${kelas}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     // MODALS
