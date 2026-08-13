@@ -39,30 +39,67 @@
 
   <!-- MAIN APP CONTAINER -->
   <div id="appSection" class="hidden flex-grow flex flex-col">
-    <!-- NAVBAR -->
-    <nav class="bg-blue-900 text-white shadow-md">
+    <!-- NAVBAR DENGAN HAMBURGER MENU -->
+    <nav class="bg-blue-900 text-white shadow-md relative z-30">
       <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-        <div class="flex items-center space-x-3">
-          <img src="kemendikbud.svg" alt="Kemendikbud" class="h-10 object-contain">
-          <div>
-            <h1 id="navTitle" class="font-bold text-lg leading-tight">Nama Sekolah</h1>
-            <span class="text-xs text-blue-200">Sistem Presensi Digital</span>
+        
+        <!-- Sisi Kiri: Logo Kemendikbud + Nama Sekolah -->
+        <div class="flex items-center space-x-3 min-w-0">
+          <img src="kemendikbud.svg" alt="Kemendikbud" class="h-9 w-9 object-contain flex-shrink-0">
+          <div class="truncate">
+            <h1 id="navTitle" class="font-bold text-base sm:text-lg leading-tight truncate">Nama Sekolah</h1>
+            <span class="text-[11px] text-blue-200">Sistem Presensi Digital</span>
           </div>
         </div>
-        <div class="flex items-center space-x-4">
-          <img id="navLogo" src="" alt="Profil Sekolah" class="h-10 w-10 rounded-full object-cover border-2 border-white">
-          <button onclick="toggleModal('modalSettings')" class="hover:text-blue-300"><i class="fa-solid fa-gear text-lg"></i></button>
-          <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-semibold"><i class="fa-solid fa-right-from-bracket mr-1"></i>Logout</button>
-        </div>
+
+        <!-- Sisi Kanan: Tombol Hamburger Menu -->
+        <button onclick="toggleSideMenu()" class="p-2 text-white hover:text-blue-200 focus:outline-none" title="Buka Menu">
+          <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+
       </div>
     </nav>
 
+    <!-- SLIDE-OUT SIDEBAR MENU (HAMBURGER DRAWER) -->
+    <div id="sideMenuOverlay" onclick="toggleSideMenu()" class="fixed inset-0 bg-black/50 z-50 hidden transition-opacity"></div>
+    <div id="sideMenu" class="fixed top-0 right-0 w-64 h-full bg-white z-50 shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+      <!-- Header Menu -->
+      <div class="bg-blue-900 text-white p-4 flex justify-between items-center">
+        <span class="font-bold text-sm">Menu Utama</span>
+        <button onclick="toggleSideMenu()" class="text-white hover:text-blue-200 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Isi Menu -->
+      <div class="p-4 flex-grow space-y-2">
+        <button onclick="toggleSideMenu(); toggleModal('modalSettings');" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 flex items-center text-gray-700 font-medium text-sm transition">
+          <i class="fa-solid fa-gear mr-3 text-blue-600"></i> Pengaturan Profil
+        </button>
+        <hr class="my-2 border-gray-100">
+        <button onclick="toggleSideMenu(); logout();" class="w-full text-left px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center font-medium text-sm transition">
+          <i class="fa-solid fa-right-from-bracket mr-3"></i> Logout
+        </button>
+      </div>
+
+      <!-- Footer Menu -->
+      <div class="p-4 border-t text-center text-xs text-gray-400">
+        Sistem Absensi v1.0
+      </div>
+    </div>
+
     <!-- NAVIGATION MENU -->
-    <div class="bg-white border-b shadow-sm">
-      <div class="max-w-7xl mx-auto px-4 flex space-x-4">
-        <button onclick="switchTab('scan')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600" id="btn-scan"><i class="fa-solid fa-qrcode mr-2"></i>Scan QR</button>
-        <button onclick="switchTab('rekap')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent hover:text-blue-600" id="btn-rekap"><i class="fa-solid fa-list-check mr-2"></i>Rekap Absensi</button>
-        <button onclick="switchTab('siswa')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent hover:text-blue-600" id="btn-siswa"><i class="fa-solid fa-user-graduate mr-2"></i>Data Siswa</button>
+    <div class="bg-white border-b shadow-sm sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto px-2 flex justify-around sm:justify-start sm:space-x-4">
+        <button onclick="switchTab('scan')" class="tab-btn py-2.5 px-3 text-xs sm:text-sm font-medium border-b-2 border-blue-600 text-blue-600 flex items-center justify-center whitespace-nowrap" id="btn-scan">
+          <i class="fa-solid fa-qrcode mr-1.5 text-sm"></i>Scan <span class="hidden sm:inline ml-1">QR</span>
+        </button>
+        <button onclick="switchTab('rekap')" class="tab-btn py-2.5 px-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-blue-600 flex items-center justify-center whitespace-nowrap" id="btn-rekap">
+          <i class="fa-solid fa-list-check mr-1.5 text-sm"></i>Rekap <span class="hidden sm:inline ml-1">Absensi</span>
+        </button>
+        <button onclick="switchTab('siswa')" class="tab-btn py-2.5 px-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-blue-600 flex items-center justify-center whitespace-nowrap" id="btn-siswa">
+          <i class="fa-solid fa-user-graduate mr-1.5 text-sm"></i>Data <span class="hidden sm:inline ml-1">Siswa</span>
+        </button>
       </div>
     </div>
 
@@ -144,7 +181,7 @@
 
     <!-- FOOTER -->
     <footer class="bg-slate-800 text-white text-center py-4 text-xs mt-auto">
-      <p>&copy; 2026 Sistem Informasi Absensi Sekolah. Powered by Google Apps Script.</p>
+      <p>&copy; 2026 Sistem Informasi Absensi Siswa</p>
     </footer>
   </div>
 
@@ -200,7 +237,21 @@
     // CONFIG URL Web App Google Apps Script
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
 
-    // HELPER API CALL VIA FETCH (Strict Simple Request / Preflight Safe)
+    // FUNCTION UNTUK TOGGLE HAMBURGER MENU
+    function toggleSideMenu() {
+      const menu = document.getElementById('sideMenu');
+      const overlay = document.getElementById('sideMenuOverlay');
+      
+      if (menu.classList.contains('translate-x-full')) {
+        menu.classList.remove('translate-x-full');
+        overlay.classList.remove('hidden');
+      } else {
+        menu.classList.add('translate-x-full');
+        overlay.classList.add('hidden');
+      }
+    }
+
+    // HELPER API CALL VIA FETCH 
     async function callApi(payload) {
       try {
         const formData = new URLSearchParams();
@@ -308,7 +359,6 @@
       const info = await callApi({ action: 'getAppInfo' });
       if (info && info.success) {
         document.getElementById('navTitle').innerText = info.namaSekolah;
-        document.getElementById('navLogo').src = info.logoUrl;
       }
       
       loadSiswa();
@@ -425,7 +475,7 @@
       }
     }
 
-    // PERBAIKAN: HANDLER SIMPAN SISWA (SUPPORT BASE64 UPLOAD)
+    // HANDLER SIMPAN SISWA (SUPPORT BASE64 UPLOAD)
     async function handleSaveSiswa(e) {
       e.preventDefault();
       
