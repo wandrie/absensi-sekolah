@@ -6,6 +6,9 @@
   <title>Sistem Absensi Sekolah</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- Pustaka JSZip & FileSaver untuk Unduh ZIP QR Code Massal -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/File-Saver.js/2.0.5/FileSaver.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
@@ -181,10 +184,22 @@
       <!-- TAB 3: DATA SISWA -->
       <div id="tab-siswa" class="tab-content hidden">
         <div class="bg-white p-6 rounded-xl shadow border">
-          <div class="flex justify-between items-center mb-4">
+          <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
             <h3 class="text-lg font-bold">Daftar Siswa</h3>
-            <button onclick="openModalSiswa()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fa-solid fa-plus mr-1"></i>Tambah Siswa</button>
+            
+            <div class="flex flex-wrap gap-2">
+              <button onclick="downloadAllQRZip()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center shadow-sm" title="Unduh seluruh QR Code siswa dalam format ZIP">
+                <i class="fa-solid fa-file-zipper mr-1.5 text-sm"></i> Download Semua QR (ZIP)
+              </button>
+              <button onclick="printAllQRCards()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center shadow-sm" title="Tampilkan layout cetak massal">
+                <i class="fa-solid fa-print mr-1.5 text-sm"></i> Cetak Kartu QR
+              </button>
+              <button onclick="openModalSiswa()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center shadow-sm">
+                <i class="fa-solid fa-plus mr-1.5 text-sm"></i> Tambah Siswa
+              </button>
+            </div>
           </div>
+
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
               <thead class="bg-gray-100 border-b">
@@ -259,11 +274,24 @@
     </div>
   </div>
 
+  <!-- MODAL PREVIEW FOTO BESAR -->
+  <div id="modalZoomFoto" class="fixed inset-0 bg-black bg-opacity-80 hidden z-50 flex items-center justify-center p-4 cursor-pointer" onclick="tutupZoomFoto()">
+    <div class="relative max-w-lg w-full bg-white rounded-xl p-3 shadow-2xl overflow-hidden cursor-default" onclick="event.stopPropagation()">
+      <button onclick="tutupZoomFoto()" class="absolute top-3 right-3 text-gray-500 hover:text-red-600 font-bold text-2xl w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition">
+        &times;
+      </button>
+      <div class="text-center p-2">
+        <img id="imgZoomTarget" src="" class="w-full h-auto max-h-[75vh] object-contain rounded-lg border">
+      </div>
+    </div>
+  </div>
+
   <script>
     // CONFIG URL Web App Google Apps Script
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
 
     let currentRekapData = []; // Array simpan data rekap aktif untuk ekspor CSV
+    let cacheDataSiswa = [];   // Array temporary simpan data siswa
 
     // FUNCTION UNTUK TOGGLE HAMBURGER MENU
     function toggleSideMenu() {
@@ -485,22 +513,123 @@
     async function loadSiswa() {
       const res = await callApi({ action: 'getSiswaData' });
       if (res && res.success) {
+        cacheDataSiswa = res.data; // Simpan cache data
         const tbody = document.getElementById('siswaTableBody');
         tbody.innerHTML = '';
         res.data.forEach(s => {
+          const fotoUrl = s[4] || 'https://via.placeholder.com/40';
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s[0])}`;
+
           tbody.innerHTML += `
             <tr class="border-b hover:bg-gray-50">
-              <td class="p-3"><img src="${s[4] || 'https://via.placeholder.com/40'}" class="w-8 h-8 rounded-full object-cover border"></td>
-              <td class="p-3">${s[0]}</td>
+              <td class="p-3">
+                <img src="${fotoUrl}" 
+                     onclick="zoomFoto('${fotoUrl}')" 
+                     class="w-9 h-9 rounded-full object-cover border cursor-pointer hover:opacity-80 hover:scale-105 transition transform" 
+                     title="Klik untuk memperbesar foto">
+              </td>
+              <td class="p-3 font-mono text-xs font-bold text-gray-700">${s[0]}</td>
               <td class="p-3 font-semibold">${s[1]}</td>
               <td class="p-3">${s[2]}</td>
               <td class="p-3">${s[3]}</td>
-              <td class="p-3">
-                <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4]}')" class="text-blue-600 hover:text-blue-800"><i class="fa-solid fa-pen"></i></button>
+              <td class="p-3 flex space-x-2">
+                <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4] || ''}')" class="text-blue-600 hover:text-blue-800 p-1" title="Edit Data">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <a href="${qrUrl}" target="_blank" download="QR_${s[0]}_${s[1]}.png" class="text-emerald-600 hover:text-emerald-800 p-1" title="Download QR Single">
+                  <i class="fa-solid fa-qrcode"></i>
+                </a>
+                <button onclick="deleteSiswa('${s[0]}')" class="text-red-600 hover:text-red-800 p-1" title="Hapus Data">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
               </td>
             </tr>`;
         });
       }
+    }
+
+    // FUNGSI 1: DOWNLOAD SEMUA QR DENGAN FORMAT ZIP
+    async function downloadAllQRZip() {
+      if (!cacheDataSiswa || cacheDataSiswa.length === 0) {
+        alert("Data siswa masih kosong!");
+        return;
+      }
+
+      const zip = new JSZip();
+      const folder = zip.folder("QR_Code_Siswa");
+      alert("Proses pengunduhan & kompresi QR Code sedang diproses. Silakan tunggu sebentar...");
+
+      for (const s of cacheDataSiswa) {
+        const nisn = s[0];
+        const nama = s[1].replace(/[^a-zA-Z0-9]/g, "_"); // Format nama file aman
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(nisn)}`;
+
+        try {
+          const response = await fetch(qrUrl);
+          const blob = await response.blob();
+          folder.file(`QR_${nisn}_${nama}.png`, blob);
+        } catch (err) {
+          console.error(`Gagal mengunduh QR untuk ${nama}:`, err);
+        }
+      }
+
+      zip.generateAsync({ type: "blob" }).then(function (content) {
+        saveAs(content, "Semua_QR_Code_Siswa.zip");
+      });
+    }
+
+    // FUNGSI 2: CETAK QR CODE
+    function printAllQRCards() {
+      if (!cacheDataSiswa || cacheDataSiswa.length === 0) {
+        alert("Data siswa masih kosong!");
+        return;
+      }
+
+      let printWindow = window.open('', '_blank');
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Cetak Kartu QR Siswa</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; background: #fff; }
+            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+            .card { border: 2px dashed #ccc; padding: 12px; border-radius: 8px; text-align: center; page-break-inside: avoid; }
+            .card img { width: 140px; height: 140px; margin: 0 auto 8px; }
+            .nama { font-weight: bold; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
+            .nisn { font-family: monospace; font-size: 12px; color: #555; }
+            .kelas { font-size: 12px; font-weight: 600; color: #1e40af; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="no-print" onclick="window.print()" style="padding: 10px 20px; font-size: 14px; margin-bottom: 20px; cursor: pointer;">Print Sekarang</button>
+          <div class="grid">
+      `;
+
+      cacheDataSiswa.forEach(s => {
+        const nisn = s[0];
+        const nama = s[1];
+        const kelas = s[2];
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(nisn)}`;
+
+        htmlContent += `
+          <div class="card">
+            <img src="${qrUrl}" alt="QR Code">
+            <div class="nama">${nama}</div>
+            <div class="nisn">NISN: ${nisn}</div>
+            <div class="kelas">Kelas: ${kelas}</div>
+          </div>
+        `;
+      });
+
+      htmlContent += `</div></body></html>`;
+
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
     }
 
     // HANDLER SIMPAN SISWA (SUPPORT BASE64 UPLOAD)
@@ -566,6 +695,17 @@
       document.getElementById('sFotoFile').value = '';
       document.getElementById('sFotoPreview').src = foto || 'https://via.placeholder.com/60';
       toggleModal('modalSiswa');
+    }
+
+    async function deleteSiswa(nisn) {
+      if (confirm(`Apakah Anda yakin ingin menghapus siswa dengan NISN: ${nisn}?`)) {
+        const res = await callApi({ action: 'deleteSiswa', nisn: nisn });
+        if (res && res.success) {
+          loadSiswa();
+        } else {
+          alert("Gagal menghapus data: " + (res ? res.message : "Error tidak diketahui"));
+        }
+      }
     }
 
     // HELPER FORMAT JAM (Menghindari String 1899-12-30T...)
@@ -702,6 +842,18 @@
         toggleModal('modalSettings');
         initApp();
       }
+    }
+
+    function zoomFoto(urlSrc) {
+      if (!urlSrc || urlSrc.includes('placeholder')) return;
+      const modal = document.getElementById('modalZoomFoto');
+      const imgTarget = document.getElementById('imgZoomTarget');
+      imgTarget.src = urlSrc;
+      modal.classList.remove('hidden');
+    }
+
+    function tutupZoomFoto() {
+      document.getElementById('modalZoomFoto').classList.add('hidden');
     }
   </script>
 </body>
