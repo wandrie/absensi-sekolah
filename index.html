@@ -289,6 +289,7 @@
   <script>
     // CONFIG URL Web App Google Apps Script
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
+    const DEFAULT_FOTO = "avatar.jpg"
 
     let currentRekapData = []; // Array simpan data rekap aktif untuk ekspor CSV
     let cacheDataSiswa = [];   // Array temporary simpan data siswa
@@ -517,7 +518,7 @@
         const tbody = document.getElementById('siswaTableBody');
         tbody.innerHTML = '';
         res.data.forEach(s => {
-          const fotoUrl = s[4] || 'https://via.placeholder.com/40';
+          const fotoUrl = s[4] || DEFAULT_FOTO;
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s[0])}`;
 
           tbody.innerHTML += `
@@ -682,7 +683,7 @@
       document.getElementById('sWali').value = '';
       document.getElementById('sFotoUrlLama').value = '';
       document.getElementById('sFotoFile').value = '';
-      document.getElementById('sFotoPreview').src = 'https://via.placeholder.com/60';
+      document.getElementById('sFotoPreview').src = DEFAULT_FOTO;
       toggleModal('modalSiswa');
     }
 
@@ -693,7 +694,7 @@
       document.getElementById('sWali').value = wali;
       document.getElementById('sFotoUrlLama').value = foto || '';
       document.getElementById('sFotoFile').value = '';
-      document.getElementById('sFotoPreview').src = foto || 'https://via.placeholder.com/60';
+      document.getElementById('sFotoPreview').src = DEFAULT_FOTO;
       toggleModal('modalSiswa');
     }
 
