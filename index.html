@@ -287,92 +287,74 @@
   </div>
 
   <script>
-    // CONFIG URL Web App Google Apps Script
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
-    const DEFAULT_FOTO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 24 24' fill='%23cbd5e1'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-8 4-8 4v2h16v-2s-1.9-4-8-4z'/></svg>";
+  // CONFIG URL Web App Google Apps Script
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
+  const DEFAULT_FOTO = "avatar.jpg";
 
-    let currentRekapData = []; // Array simpan data rekap aktif untuk ekspor CSV
-    let cacheDataSiswa = [];   // Array temporary simpan data siswa
+  let currentRekapData = []; // Array simpan data rekap aktif untuk ekspor CSV
+  let cacheDataSiswa = [];   // Array temporary simpan data siswa
 
-    // FUNCTION UNTUK TOGGLE MODAL
-    function toggleModal(id) {
-      const el = document.getElementById(id);
-      if (el) el.classList.toggle('hidden');
+  // FUNCTION UNTUK TOGGLE HAMBURGER MENU
+  function toggleSideMenu() {
+    const menu = document.getElementById('sideMenu');
+    const overlay = document.getElementById('sideMenuOverlay');
+    
+    if (menu && overlay) {
+      menu.classList.toggle('translate-x-full');
+      overlay.classList.toggle('hidden');
     }
+  }
 
-    // FUNCTION UNTUK ZOOM FOTO
-    function zoomFoto(url) {
-      document.getElementById('imgZoomTarget').src = url;
-      document.getElementById('modalZoomFoto').classList.remove('hidden');
-    }
+  // HELPER API CALL VIA FETCH 
+  async function callApi(payload) {
+    try {
+      const formData = new URLSearchParams();
+      formData.append("data", JSON.stringify(payload));
 
-    function tutupZoomFoto() {
-      document.getElementById('modalZoomFoto').classList.add('hidden');
-    }
-
-    // FUNCTION UNTUK TOGGLE HAMBURGER MENU
-    function toggleSideMenu() {
-      const menu = document.getElementById('sideMenu');
-      const overlay = document.getElementById('sideMenuOverlay');
-      
-      if (menu.classList.contains('translate-x-full')) {
-        menu.classList.remove('translate-x-full');
-        overlay.classList.remove('hidden');
-      } else {
-        menu.classList.add('translate-x-full');
-        overlay.classList.add('hidden');
-      }
-    }
-
-    // HELPER API CALL VIA FETCH 
-    async function callApi(payload) {
-      try {
-        const formData = new URLSearchParams();
-        formData.append("data", JSON.stringify(payload));
-
-        const response = await fetch(GAS_URL, {
-          method: "POST",
-          body: formData
-        });
-
-        const text = await response.text();
-        try {
-          return JSON.parse(text);
-        } catch (e) {
-          console.error("Non-JSON Response:", text);
-          return { success: false, message: "Format respons server tidak sesuai." };
-        }
-      } catch (err) {
-        console.error("Network Error:", err);
-        return { success: false, message: "Gagal terhubung ke server Google Script." };
-      }
-    }
-
-    // PREVIEW FOTO
-    function previewImage(input) {
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          document.getElementById('sFotoPreview').src = e.target.result;
-        }
-        reader.readAsDataURL(input.files[0]);
-      }
-    }
-
-    // KONVERSI BERKAS FOTO KE BASE64
-    function convertFileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-        reader.readAsDataURL(file);
+      const response = await fetch(GAS_URL, {
+        method: "POST",
+        body: formData
       });
-    }
 
-    // TOGGLE PASSWORD VISIBILITY
-    function togglePassword(inputId, iconId) {
-      const input = document.getElementById(inputId);
-      const icon = document.getElementById(iconId);
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        console.error("Non-JSON Response:", text);
+        return { success: false, message: "Format respons server tidak sesuai." };
+      }
+    } catch (err) {
+      console.error("Network Error:", err);
+      return { success: false, message: "Gagal terhubung ke server Google Script." };
+    }
+  }
+
+  // PREVIEW FOTO
+  function previewImage(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('sFotoPreview').src = e.target.result;
+      }
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  // KONVERSI BERKAS FOTO KE BASE64
+  function convertFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // TOGGLE PASSWORD VISIBILITY
+  function togglePassword(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (input && icon) {
       if (input.type === "password") {
         input.type = "text";
         icon.classList.remove("fa-eye");
@@ -383,461 +365,511 @@
         icon.classList.add("fa-eye");
       }
     }
+  }
 
-    // AUTHENTICATION
-    async function handleLogin(e) {
-      if (e) e.preventDefault();
-      
-      const u = document.getElementById('loginUser').value;
-      const p = document.getElementById('loginPass').value;
-      const btn = document.getElementById('btnLogin');
-      
-      if (!u || !p) {
-        alert("Username dan Password wajib diisi!");
-        return false;
-      }
-
-      btn.innerText = "Proses...";
-      btn.disabled = true;
-
-      try {
-        const res = await callApi({ action: 'login', username: u, password: p });
-        
-        btn.innerText = "Masuk";
-        btn.disabled = false;
-
-        if (res && res.success) {
-          document.getElementById('loginSection').classList.add('hidden');
-          document.getElementById('appSection').classList.remove('hidden');
-          initApp();
-        } else {
-          alert((res && res.message) ? res.message : "Login gagal, silakan cek username/password Anda.");
-        }
-      } catch (err) {
-        btn.innerText = "Masuk";
-        btn.disabled = false;
-        alert("Terjadi kesalahan sistem: " + err.message);
-      }
-
+  // AUTHENTICATION
+  async function handleLogin(e) {
+    if (e) e.preventDefault();
+    
+    const u = document.getElementById('loginUser').value;
+    const p = document.getElementById('loginPass').value;
+    const btn = document.getElementById('btnLogin');
+    
+    if (!u || !p) {
+      alert("Username dan Password wajib diisi!");
       return false;
     }
 
-    function logout() {
-      stopAutoScanner();
-      document.getElementById('appSection').classList.add('hidden');
-      document.getElementById('loginSection').classList.remove('hidden');
-    }
+    btn.innerText = "Proses...";
+    btn.disabled = true;
 
-    async function initApp() {
-      const info = await callApi({ action: 'getAppInfo' });
-      if (info && info.success) {
-        document.getElementById('navTitle').innerText = info.namaSekolah;
-      }
+    try {
+      const res = await callApi({ action: 'login', username: u, password: p });
       
-      loadSiswa();
-      loadRekap();
-      startAutoScanner();
-    }
-
-    // TAB NAVIGATION
-    function switchTab(tabName) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.querySelectorAll('.tab-btn').forEach(el => {
-        el.classList.remove('border-blue-600', 'text-blue-600');
-        el.classList.add('border-transparent');
-      });
-      
-      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-      document.getElementById(`btn-${tabName}`).classList.add('border-blue-600', 'text-blue-600');
-
-      if (tabName === 'scan') {
-        startAutoScanner();
-      } else {
-        stopAutoScanner();
-      }
-    }
-
-    // AUTOMATIC LIVE SCANNER LOGIC
-    let html5QrCode = null;
-    let isProcessing = false;
-
-    function startAutoScanner() {
-      if (html5QrCode && html5QrCode.isScanning) return;
-
-      html5QrCode = new Html5Qrcode("qr-reader");
-      const config = { fps: 15, qrbox: { width: 250, height: 250 } };
-
-      html5QrCode.start(
-        { facingMode: "environment" }, 
-        config, 
-        onScanSuccess
-      ).then(() => {
-        document.getElementById('btnStartCam').classList.add('hidden');
-        document.getElementById('btnStopCam').classList.remove('hidden');
-      }).catch(err => {
-        console.warn("Kamera terblokir/tidak tersedia:", err);
-      });
-    }
-
-    async function onScanSuccess(decodedText) {
-      if (isProcessing) return;
-      isProcessing = true;
-
-      playBeepSound();
-
-      const res = await callApi({ action: 'processScan', nisn: decodedText });
-      const resDiv = document.getElementById('scanResult');
-      resDiv.classList.remove('hidden');
-      
-      if (res && res.success) {
-        resDiv.className = "mt-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-300 font-bold";
-        resDiv.innerHTML = `Berhasil Absen!<br>${res.siswa.nama} (${res.siswa.kelas})<br><span class="text-xs font-normal">${res.notifStatus || ''}</span>`;
-        loadRekap();
-      } else {
-        resDiv.className = "mt-4 p-4 rounded-lg bg-red-100 text-red-800 border border-red-300 font-bold";
-        resDiv.innerHTML = res ? res.message : "Gagal memproses data scan.";
-      }
-
-      setTimeout(() => {
-        isProcessing = false;
-        resDiv.classList.add('hidden');
-      }, 3000);
-    }
-
-    function stopAutoScanner() {
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-          html5QrCode.clear();
-          document.getElementById('btnStartCam').classList.remove('hidden');
-          document.getElementById('btnStopCam').classList.add('hidden');
-        }).catch(err => console.error(err));
-      }
-    }
-
-    function playBeepSound() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.15);
-      } catch (e) {}
-    }
-
-    // DATA SISWA
-    async function loadSiswa() {
-      const res = await callApi({ action: 'getSiswaData' });
-      if (res && res.success) {
-        cacheDataSiswa = res.data; // Simpan cache data
-        const tbody = document.getElementById('siswaTableBody');
-        tbody.innerHTML = '';
-        
-        // Update Opsi Filter Kelas di Rekap
-        const filterKelasSelect = document.getElementById('filterKelas');
-        const kelasList = [...new Set(res.data.map(s => s[2]))].sort();
-        filterKelasSelect.innerHTML = '<option value="">Semua Kelas</option>';
-        kelasList.forEach(k => {
-          if (k) filterKelasSelect.innerHTML += `<option value="${k}">${k}</option>`;
-        });
-
-        res.data.forEach(s => {
-          const fotoUrl = s[4] || DEFAULT_FOTO;
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s[0])}`;
-
-          tbody.innerHTML += `
-            <tr class="border-b hover:bg-gray-50">
-              <td class="p-3">
-                <img src="${fotoUrl}" 
-                     onclick="zoomFoto('${fotoUrl}')" 
-                     class="w-9 h-9 rounded-full object-cover border cursor-pointer hover:opacity-80 hover:scale-105 transition transform" 
-                     title="Klik untuk memperbesar foto">
-              </td>
-              <td class="p-3 font-mono text-xs font-bold text-gray-700">${s[0]}</td>
-              <td class="p-3 font-semibold">${s[1]}</td>
-              <td class="p-3">${s[2]}</td>
-              <td class="p-3">${s[3]}</td>
-              <td class="p-3 flex space-x-2">
-                <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4] || ''}')" class="text-blue-600 hover:text-blue-800 p-1" title="Edit Data">
-                  <i class="fa-solid fa-pen"></i>
-                </button>
-                <a href="${qrUrl}" target="_blank" download="QR_${s[0]}_${s[1]}.png" class="text-emerald-600 hover:text-emerald-800 p-1" title="Download QR Single">
-                  <i class="fa-solid fa-qrcode"></i>
-                </a>
-                <button onclick="deleteSiswa('${s[0]}')" class="text-red-600 hover:text-red-800 p-1" title="Hapus Data">
-                  <i class="fa-solid fa-trash"></i>
-                </button>
-              </td>
-            </tr>`;
-        });
-      }
-    }
-
-    // FUNGSI 1: DOWNLOAD SEMUA QR DENGAN FORMAT ZIP
-    async function downloadAllQRZip() {
-      if (!cacheDataSiswa || cacheDataSiswa.length === 0) {
-        alert("Data siswa masih kosong!");
-        return;
-      }
-
-      const zip = new JSZip();
-      const folder = zip.folder("QR_Code_Siswa");
-      alert("Proses pengunduhan & kompresi QR Code sedang diproses. Silakan tunggu sebentar...");
-
-      for (const s of cacheDataSiswa) {
-        const nisn = s[0];
-        const nama = s[1].replace(/[^a-zA-Z0-9]/g, "_"); // Format nama file aman
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(nisn)}`;
-
-        try {
-          const response = await fetch(qrUrl);
-          const blob = await response.blob();
-          folder.file(`QR_${nisn}_${nama}.png`, blob);
-        } catch (err) {
-          console.error(`Gagal mengunduh QR untuk ${nama}:`, err);
-        }
-      }
-
-      zip.generateAsync({ type: "blob" }).then(function (content) {
-        saveAs(content, "Semua_QR_Code_Siswa.zip");
-      });
-    }
-
-    // FUNGSI 2: CETAK QR CODE
-    function printAllQRCards() {
-      if (!cacheDataSiswa || cacheDataSiswa.length === 0) {
-        alert("Data siswa masih kosong!");
-        return;
-      }
-
-      let printWindow = window.open('', '_blank');
-      let htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Cetak Kartu QR Siswa</title>
-          <style>
-            body { font-family: sans-serif; padding: 20px; background: #fff; }
-            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-            .card { border: 2px dashed #ccc; padding: 12px; border-radius: 8px; text-align: center; page-break-inside: avoid; }
-            .card img { width: 140px; height: 140px; margin: 0 auto 8px; }
-            .nama { font-weight: bold; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
-            .nisn { font-family: monospace; font-size: 12px; color: #555; }
-            .kelas { font-size: 12px; font-weight: 600; color: #1e40af; }
-            @media print {
-              body { padding: 0; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <button class="no-print" onclick="window.print()" style="padding: 10px 20px; font-size: 14px; margin-bottom: 20px; cursor: pointer;">Print Sekarang</button>
-          <div class="grid">
-      `;
-
-      cacheDataSiswa.forEach(s => {
-        const nisn = s[0];
-        const nama = s[1];
-        const kelas = s[2];
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(nisn)}`;
-
-        htmlContent += `
-          <div class="card">
-            <img src="${qrUrl}" alt="QR Code">
-            <div class="nama">${nama}</div>
-            <div class="nisn">NISN: ${nisn}</div>
-            <div class="kelas">Kelas: ${kelas}</div>
-          </div>
-        `;
-      });
-
-      htmlContent += `</div></body></html>`;
-
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-    }
-
-    // HANDLER SIMPAN SISWA (SUPPORT BASE64 UPLOAD)
-    async function handleSaveSiswa(e) {
-      e.preventDefault();
-      
-      const btn = document.getElementById('btnSaveSiswa');
-      btn.disabled = true;
-      btn.innerText = "Mengunggah...";
-
-      const fileInput = document.getElementById('sFotoFile');
-      let fotoData = document.getElementById('sFotoUrlLama').value;
-
-      if (fileInput.files.length > 0) {
-        try {
-          fotoData = await convertFileToBase64(fileInput.files[0]);
-        } catch (err) {
-          alert("Gagal membaca berkas foto.");
-          btn.disabled = false;
-          btn.innerText = "Simpan";
-          return;
-        }
-      }
-
-      const payload = {
-        nisn: document.getElementById('sNisn').value,
-        nama: document.getElementById('sNama').value,
-        kelas: document.getElementById('sKelas').value,
-        noWali: document.getElementById('sWali').value,
-        foto: fotoData
-      };
-      
-      const res = await callApi({ action: 'saveSiswa', payload: payload });
-      
+      btn.innerText = "Masuk";
       btn.disabled = false;
-      btn.innerText = "Simpan";
 
       if (res && res.success) {
-        toggleModal('modalSiswa');
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('appSection').classList.remove('hidden');
+        initApp();
+      } else {
+        alert((res && res.message) ? res.message : "Login gagal, silakan cek username/password Anda.");
+      }
+    } catch (err) {
+      btn.innerText = "Masuk";
+      btn.disabled = false;
+      alert("Terjadi kesalahan sistem: " + err.message);
+    }
+
+    return false;
+  }
+
+  function logout() {
+    stopAutoScanner();
+    document.getElementById('appSection').classList.add('hidden');
+    document.getElementById('loginSection').classList.remove('hidden');
+  }
+
+  async function initApp() {
+    const info = await callApi({ action: 'getAppInfo' });
+    if (info && info.success) {
+      document.getElementById('navTitle').innerText = info.namaSekolah;
+    }
+    
+    loadSiswa();
+    loadRekap();
+    startAutoScanner();
+  }
+
+  // TAB NAVIGATION
+  function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(el => {
+      el.classList.remove('border-blue-600', 'text-blue-600');
+      el.classList.add('border-transparent');
+    });
+    
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    const targetBtn = document.getElementById(`btn-${tabName}`);
+
+    if (targetTab) targetTab.classList.remove('hidden');
+    if (targetBtn) targetBtn.classList.add('border-blue-600', 'text-blue-600');
+
+    if (tabName === 'scan') {
+      startAutoScanner();
+    } else {
+      stopAutoScanner();
+    }
+  }
+
+  // AUTOMATIC LIVE SCANNER LOGIC
+  let html5QrCode = null;
+  let isProcessing = false;
+
+  function startAutoScanner() {
+    if (html5QrCode && html5QrCode.isScanning) return;
+
+    html5QrCode = new Html5Qrcode("qr-reader");
+    const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+
+    html5QrCode.start(
+      { facingMode: "environment" }, 
+      config, 
+      onScanSuccess
+    ).then(() => {
+      document.getElementById('btnStartCam').classList.add('hidden');
+      document.getElementById('btnStopCam').classList.remove('hidden');
+    }).catch(err => {
+      console.warn("Kamera terblokir/tidak tersedia:", err);
+    });
+  }
+
+  async function onScanSuccess(decodedText) {
+    if (isProcessing) return;
+    isProcessing = true;
+
+    playBeepSound();
+
+    const res = await callApi({ action: 'processScan', nisn: decodedText });
+    const resDiv = document.getElementById('scanResult');
+    resDiv.classList.remove('hidden');
+    
+    if (res && res.success) {
+      resDiv.className = "mt-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-300 font-bold";
+      resDiv.innerHTML = `Berhasil Absen!<br>${res.siswa.nama} (${res.siswa.kelas})<br><span class="text-xs font-normal">${res.notifStatus}</span>`;
+      loadRekap();
+    } else {
+      resDiv.className = "mt-4 p-4 rounded-lg bg-red-100 text-red-800 border border-red-300 font-bold";
+      resDiv.innerHTML = res ? res.message : "Gagal memproses data scan.";
+    }
+
+    setTimeout(() => {
+      isProcessing = false;
+      resDiv.classList.add('hidden');
+    }, 3000);
+  }
+
+  function stopAutoScanner() {
+    if (html5QrCode && html5QrCode.isScanning) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        document.getElementById('btnStartCam').classList.remove('hidden');
+        document.getElementById('btnStopCam').classList.add('hidden');
+      }).catch(err => console.error(err));
+    }
+  }
+
+  function playBeepSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {}
+  }
+
+  // DATA SISWA
+  async function loadSiswa() {
+    const res = await callApi({ action: 'getSiswaData' });
+    if (res && res.success) {
+      cacheDataSiswa = res.data;
+      const tbody = document.getElementById('siswaTableBody');
+      tbody.innerHTML = '';
+      res.data.forEach(s => {
+        const fotoUrl = s[4] || DEFAULT_FOTO;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s[0])}`;
+
+        tbody.innerHTML += `
+          <tr class="border-b hover:bg-gray-50">
+            <td class="p-3">
+              <img src="${fotoUrl}" 
+                   onclick="zoomFoto('${fotoUrl}')" 
+                   class="w-9 h-9 rounded-full object-cover border cursor-pointer hover:opacity-80 hover:scale-105 transition transform" 
+                   title="Klik untuk memperbesar foto">
+            </td>
+            <td class="p-3 font-mono text-xs font-bold text-gray-700">${s[0]}</td>
+            <td class="p-3 font-semibold">${s[1]}</td>
+            <td class="p-3">${s[2]}</td>
+            <td class="p-3">${s[3]}</td>
+            <td class="p-3 flex space-x-2">
+              <button onclick="editSiswa('${s[0]}','${s[1]}','${s[2]}','${s[3]}','${s[4] || ''}')" class="text-blue-600 hover:text-blue-800 p-1" title="Edit Data">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <a href="${qrUrl}" target="_blank" download="QR_${s[0]}_${s[1]}.png" class="text-emerald-600 hover:text-emerald-800 p-1" title="Download QR Single">
+                <i class="fa-solid fa-qrcode"></i>
+              </a>
+              <button onclick="deleteSiswa('${s[0]}')" class="text-red-600 hover:text-red-800 p-1" title="Hapus Data">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>`;
+      });
+    }
+  }
+
+  // DOWNLOAD SEMUA QR DENGAN FORMAT ZIP
+  async function downloadAllQRZip() {
+    if (!cacheDataSiswa || cacheDataSiswa.length === 0) {
+      alert("Data siswa masih kosong!");
+      return;
+    }
+
+    if (typeof JSZip === 'undefined') {
+      alert("Library JSZip belum dimuat di HTML!");
+      return;
+    }
+
+    const zip = new JSZip();
+    const folder = zip.folder("QR_Code_Siswa");
+    alert("Proses pengunduhan & kompresi QR Code sedang diproses. Silakan tunggu sebentar...");
+
+    for (const s of cacheDataSiswa) {
+      const nisn = s[0];
+      const nama = s[1].replace(/[^a-zA-Z0-9]/g, "_");
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(nisn)}`;
+
+      try {
+        const response = await fetch(qrUrl);
+        const blob = await response.blob();
+        folder.file(`QR_${nisn}_${nama}.png`, blob);
+      } catch (err) {
+        console.error(`Gagal mengunduh QR untuk ${nama}:`, err);
+      }
+    }
+
+    zip.generateAsync({ type: "blob" }).then(function (content) {
+      if (typeof saveAs !== 'undefined') {
+        saveAs(content, "Semua_QR_Code_Siswa.zip");
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = "Semua_QR_Code_Siswa.zip";
+        a.click();
+      }
+    });
+  }
+
+  // CETAK QR CODE
+  function printAllQRCards() {
+    if (!cacheDataSiswa || cacheDataSiswa.length === 0) {
+      alert("Data siswa masih kosong!");
+      return;
+    }
+
+    let printWindow = window.open('', '_blank');
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Cetak Kartu QR Siswa</title>
+        <style>
+          body { font-family: sans-serif; padding: 20px; background: #fff; }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+          .card { border: 2px dashed #ccc; padding: 12px; border-radius: 8px; text-align: center; page-break-inside: avoid; }
+          .card img { width: 140px; height: 140px; margin: 0 auto 8px; }
+          .nama { font-weight: bold; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
+          .nisn { font-family: monospace; font-size: 12px; color: #555; }
+          .kelas { font-size: 12px; font-weight: 600; color: #1e40af; }
+          @media print {
+            body { padding: 0; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="no-print" onclick="window.print()" style="padding: 10px 20px; font-size: 14px; margin-bottom: 20px; cursor: pointer;">Print Sekarang</button>
+        <div class="grid">
+    `;
+
+    cacheDataSiswa.forEach(s => {
+      const nisn = s[0];
+      const nama = s[1];
+      const kelas = s[2];
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(nisn)}`;
+
+      htmlContent += `
+        <div class="card">
+          <img src="${qrUrl}" alt="QR Code">
+          <div class="nama">${nama}</div>
+          <div class="nisn">NISN: ${nisn}</div>
+          <div class="kelas">Kelas: ${kelas}</div>
+        </div>
+      `;
+    });
+
+    htmlContent += `</div></body></html>`;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  }
+
+  // HANDLER SIMPAN SISWA (SUPPORT BASE64 UPLOAD)
+  async function handleSaveSiswa(e) {
+    e.preventDefault();
+    
+    const btn = document.getElementById('btnSaveSiswa');
+    btn.disabled = true;
+    btn.innerText = "Mengunggah...";
+
+    const fileInput = document.getElementById('sFotoFile');
+    let fotoData = document.getElementById('sFotoUrlLama').value;
+
+    if (fileInput.files.length > 0) {
+      try {
+        fotoData = await convertFileToBase64(fileInput.files[0]);
+      } catch (err) {
+        alert("Gagal membaca berkas foto.");
+        btn.disabled = false;
+        btn.innerText = "Simpan";
+        return;
+      }
+    }
+
+    const payload = {
+      nisn: document.getElementById('sNisn').value,
+      nama: document.getElementById('sNama').value,
+      kelas: document.getElementById('sKelas').value,
+      noWali: document.getElementById('sWali').value,
+      foto: fotoData
+    };
+    
+    const res = await callApi({ action: 'saveSiswa', payload: payload });
+    
+    btn.disabled = false;
+    btn.innerText = "Simpan";
+
+    if (res && res.success) {
+      toggleModal('modalSiswa');
+      loadSiswa();
+    } else {
+      alert("Gagal menyimpan data: " + (res ? res.message : "Error tidak diketahui"));
+    }
+  }
+
+  function openModalSiswa() {
+    document.getElementById('sNisn').value = '';
+    document.getElementById('sNama').value = '';
+    document.getElementById('sKelas').value = '';
+    document.getElementById('sWali').value = '';
+    document.getElementById('sFotoUrlLama').value = '';
+    document.getElementById('sFotoFile').value = '';
+    document.getElementById('sFotoPreview').src = DEFAULT_FOTO;
+    toggleModal('modalSiswa');
+  }
+
+  function editSiswa(nisn, nama, kelas, wali, foto) {
+    document.getElementById('sNisn').value = nisn;
+    document.getElementById('sNama').value = nama;
+    document.getElementById('sKelas').value = kelas;
+    document.getElementById('sWali').value = wali;
+    document.getElementById('sFotoUrlLama').value = foto || '';
+    document.getElementById('sFotoFile').value = '';
+    document.getElementById('sFotoPreview').src = foto || DEFAULT_FOTO;
+    toggleModal('modalSiswa');
+  }
+
+  async function deleteSiswa(nisn) {
+    if (confirm(`Apakah Anda yakin ingin menghapus siswa dengan NISN: ${nisn}?`)) {
+      const res = await callApi({ action: 'deleteSiswa', nisn: nisn });
+      if (res && res.success) {
         loadSiswa();
       } else {
-        alert("Gagal menyimpan data: " + (res ? res.message : "Error tidak diketahui"));
+        alert("Gagal menghapus data: " + (res ? res.message : "Error tidak diketahui"));
       }
     }
+  }
 
-    function openModalSiswa() {
-      document.getElementById('sNisn').value = '';
-      document.getElementById('sNama').value = '';
-      document.getElementById('sKelas').value = '';
-      document.getElementById('sWali').value = '';
-      document.getElementById('sFotoUrlLama').value = '';
-      document.getElementById('sFotoFile').value = '';
-      document.getElementById('sFotoPreview').src = DEFAULT_FOTO;
-      toggleModal('modalSiswa');
-    }
-
-    function editSiswa(nisn, nama, kelas, wali, foto) {
-      document.getElementById('sNisn').value = nisn;
-      document.getElementById('sNama').value = nama;
-      document.getElementById('sKelas').value = kelas;
-      document.getElementById('sWali').value = wali;
-      document.getElementById('sFotoUrlLama').value = foto || '';
-      document.getElementById('sFotoFile').value = '';
-      document.getElementById('sFotoPreview').src = foto || DEFAULT_FOTO;
-      toggleModal('modalSiswa');
-    }
-
-    async function deleteSiswa(nisn) {
-      if (confirm(`Apakah Anda yakin ingin menghapus siswa dengan NISN: ${nisn}?`)) {
-        const res = await callApi({ action: 'deleteSiswa', nisn: nisn });
-        if (res && res.success) {
-          loadSiswa();
-        } else {
-          alert("Gagal menghapus data: " + (res ? res.message : "Error tidak diketahui"));
-        }
+  // HELPER FORMAT JAM
+  function formatJamDisplay(rawJam) {
+    if (!rawJam) return '-';
+    let str = String(rawJam);
+    
+    if (str.includes('T')) {
+      let dateObj = new Date(str);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       }
     }
+    return str;
+  }
 
-    // HELPER FORMAT JAM (Menghindari String 1899-12-30T...)
-    function formatJamDisplay(rawJam) {
-      if (!rawJam) return '-';
-      let str = String(rawJam);
-      
-      if (str.includes('T')) {
-        let dateObj = new Date(str);
-        if (!isNaN(dateObj.getTime())) {
-          return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
-      }
-      return str;
-    }
+  // REKAP ABSENSI & DYNAMIC FILTER KELAS
+  async function loadRekap() {
+    const startTgl = document.getElementById('filterStart').value;
+    const endTgl = document.getElementById('filterEnd').value;
+    const filterKelasVal = document.getElementById('filterKelas').value;
 
-    // REKAP ABSENSI & DYNAMIC FILTER KELAS
-    async function loadRekap() {
-      const startTgl = document.getElementById('filterStart').value;
-      const endTgl = document.getElementById('filterEnd').value;
-      const kelasSelect = document.getElementById('filterKelas').value;
+    const res = await callApi({ action: 'getAbsensiData' });
+    if (res && res.success) {
+      const tbody = document.getElementById('rekapTableBody');
+      tbody.innerHTML = '';
+      currentRekapData = [];
 
-      const res = await callApi({ 
-        action: 'getRekapData', 
-        startDate: startTgl, 
-        endDate: endTgl,
-        kelas: kelasSelect
+      const classSelect = document.getElementById('filterKelas');
+      const setKelas = new Set();
+
+      res.data.forEach(r => {
+        if (r[6]) setKelas.add(r[6]);
       });
 
-      if (res && res.success) {
-        currentRekapData = res.data;
-        const tbody = document.getElementById('rekapTableBody');
-        tbody.innerHTML = '';
+      const selectedKelas = classSelect.value;
+      classSelect.innerHTML = '<option value="">Semua Kelas</option>';
+      Array.from(setKelas).sort().forEach(k => {
+        classSelect.innerHTML += `<option value="${k}" ${String(k) === String(selectedKelas) ? 'selected' : ''}>Kelas ${k}</option>`;
+      });
 
-        if (res.data.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400">Tidak ada data rekap absensi.</td></tr>`;
-          return;
+      res.data.forEach(r => {
+        let tglStr = "";
+        try {
+          tglStr = new Date(r[2]).toISOString().split('T')[0];
+        } catch(e) {
+          tglStr = String(r[2]);
         }
 
-        res.data.forEach(r => {
+        const jamStr = formatJamDisplay(r[3]);
+        const nisn = r[4];
+        const nama = r[5];
+        const kelas = r[6];
+        const status = r[7];
+
+        const matchStart = !startTgl || tglStr >= startTgl;
+        const matchEnd = !endTgl || tglStr <= endTgl;
+        const matchKelas = !filterKelasVal || String(kelas) === String(filterKelasVal);
+
+        if (matchStart && matchEnd && matchKelas) {
+          const rowData = { tgl: tglStr, jam: jamStr, nisn, nama, kelas, status };
+          currentRekapData.push(rowData);
+
           tbody.innerHTML += `
             <tr class="border-b hover:bg-gray-50">
-              <td class="p-3 text-xs text-gray-600">${r[0]}</td>
-              <td class="p-3 text-xs font-mono">${formatJamDisplay(r[1])}</td>
-              <td class="p-3 font-mono text-xs font-bold text-gray-700">${r[2]}</td>
-              <td class="p-3 font-semibold">${r[3]}</td>
-              <td class="p-3 text-xs">${r[4]}</td>
-              <td class="p-3">
-                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                  ${r[5] || 'Hadir'}
-                </span>
-              </td>
+              <td class="p-3">${tglStr}</td>
+              <td class="p-3">${jamStr}</td>
+              <td class="p-3">${nisn}</td>
+              <td class="p-3 font-semibold">${nama}</td>
+              <td class="p-3">${kelas}</td>
+              <td class="p-3"><span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">${status}</span></td>
             </tr>`;
-        });
-      }
-    }
-
-    function resetFilterRekap() {
-      document.getElementById('filterStart').value = '';
-      document.getElementById('filterEnd').value = '';
-      document.getElementById('filterKelas').value = '';
-      loadRekap();
-    }
-
-    function downloadRekapExcel() {
-      if (!currentRekapData || currentRekapData.length === 0) {
-        alert("Tidak ada data rekap untuk diunduh!");
-        return;
-      }
-
-      let csvContent = "data:text/csv;charset=utf-8,Tanggal,Jam,NISN,Nama,Kelas,Status\n";
-      currentRekapData.forEach(row => {
-        let rowStr = [
-          `"${row[0] || ''}"`,
-          `"${formatJamDisplay(row[1])}"`,
-          `"${row[2] || ''}"`,
-          `"${row[3] || ''}"`,
-          `"${row[4] || ''}"`,
-          `"${row[5] || 'Hadir'}"`
-        ].join(",");
-        csvContent += rowStr + "\n";
+        }
       });
 
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Rekap_Absensi_${new Date().toISOString().slice(0,10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // SIMPAN PENGATURAN PROFIL
-    async function saveSettings(e) {
-      e.preventDefault();
-      const logo = document.getElementById('setLogo').value;
-      const pass = document.getElementById('setPass').value;
-
-      const res = await callApi({ action: 'updateSettings', logo: logo, password: pass });
-      if (res && res.success) {
-        alert("Pengaturan berhasil disimpan.");
-        toggleModal('modalSettings');
-      } else {
-        alert("Gagal menyimpan pengaturan.");
+      if (currentRekapData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 text-sm">Tidak ada data absensi pada periode/kelas ini.</td></tr>`;
       }
     }
-  </script>
+  }
+
+  // RESET FILTER REKAP
+  function resetFilterRekap() {
+    document.getElementById('filterStart').value = '';
+    document.getElementById('filterEnd').value = '';
+    document.getElementById('filterKelas').value = '';
+    loadRekap();
+  }
+
+  // EKSPOR LAPORAN KE EXCEL/CSV
+  function downloadRekapExcel() {
+    if (currentRekapData.length === 0) {
+      alert("Tidak ada data rekap yang dapat diunduh.");
+      return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
+    csvContent += "Tanggal,Jam,NISN,Nama,Kelas,Status\n";
+
+    currentRekapData.forEach(row => {
+      csvContent += `"${row.tgl}","${row.jam}","'${row.nisn}","${row.nama}","${row.kelas}","${row.status}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    
+    const start = document.getElementById('filterStart').value || 'Awal';
+    const end = document.getElementById('filterEnd').value || 'Akhir';
+    const kelas = document.getElementById('filterKelas').value ? `_Kelas_${document.getElementById('filterKelas').value}` : '';
+
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Laporan_Absensi_${start}_s.d_${end}${kelas}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // MODALS
+  function toggleModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.toggle('hidden');
+  }
+
+  async function saveSettings(e) {
+    e.preventDefault();
+    const logo = document.getElementById('setLogo').value;
+    const pass = document.getElementById('setPass').value;
+    
+    const res = await callApi({ action: 'updateProfile', logo: logo, pass: pass });
+    if (res && res.success) {
+      toggleModal('modalSettings');
+      initApp();
+    }
+  }
+
+  function zoomFoto(urlSrc) {
+    if (!urlSrc || urlSrc.includes('placeholder')) return;
+    const modal = document.getElementById('modalZoomFoto');
+    const imgTarget = document.getElementById('imgZoomTarget');
+    if (modal && imgTarget) {
+      imgTarget.src = urlSrc;
+      modal.classList.remove('hidden');
+    }
+  }
+
+  function tutupZoomFoto() {
+    const modal = document.getElementById('modalZoomFoto');
+    if (modal) modal.classList.add('hidden');
+  }
+</script>
 </body>
 </html>
