@@ -289,10 +289,26 @@
   <script>
     // CONFIG URL Web App Google Apps Script
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyEmfMzfQr8Y4l09ALVvq4kB5RpMc-RLCcXlDYmxrZb51MIu0hbK2LbmvnIP9_26PPrlg/exec";
-    const DEFAULT_FOTO = "avatar.jpg"
+    const DEFAULT_FOTO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 24 24' fill='%23cbd5e1'><circle cx='12' cy='8' r='4'/><path d='M12 14c-6.1 0-8 4-8 4v2h16v-2s-1.9-4-8-4z'/></svg>";
 
     let currentRekapData = []; // Array simpan data rekap aktif untuk ekspor CSV
     let cacheDataSiswa = [];   // Array temporary simpan data siswa
+
+    // FUNCTION UNTUK TOGGLE MODAL
+    function toggleModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden');
+    }
+
+    // FUNCTION UNTUK ZOOM FOTO
+    function zoomFoto(url) {
+      document.getElementById('imgZoomTarget').src = url;
+      document.getElementById('modalZoomFoto').classList.remove('hidden');
+    }
+
+    function tutupZoomFoto() {
+      document.getElementById('modalZoomFoto').classList.add('hidden');
+    }
 
     // FUNCTION UNTUK TOGGLE HAMBURGER MENU
     function toggleSideMenu() {
@@ -475,7 +491,7 @@
       
       if (res && res.success) {
         resDiv.className = "mt-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-300 font-bold";
-        resDiv.innerHTML = `Berhasil Absen!<br>${res.siswa.nama} (${res.siswa.kelas})<br><span class="text-xs font-normal">${res.notifStatus}</span>`;
+        resDiv.innerHTML = `Berhasil Absen!<br>${res.siswa.nama} (${res.siswa.kelas})<br><span class="text-xs font-normal">${res.notifStatus || ''}</span>`;
         loadRekap();
       } else {
         resDiv.className = "mt-4 p-4 rounded-lg bg-red-100 text-red-800 border border-red-300 font-bold";
@@ -517,6 +533,15 @@
         cacheDataSiswa = res.data; // Simpan cache data
         const tbody = document.getElementById('siswaTableBody');
         tbody.innerHTML = '';
+        
+        // Update Opsi Filter Kelas di Rekap
+        const filterKelasSelect = document.getElementById('filterKelas');
+        const kelasList = [...new Set(res.data.map(s => s[2]))].sort();
+        filterKelasSelect.innerHTML = '<option value="">Semua Kelas</option>';
+        kelasList.forEach(k => {
+          if (k) filterKelasSelect.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+
         res.data.forEach(s => {
           const fotoUrl = s[4] || DEFAULT_FOTO;
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s[0])}`;
@@ -694,7 +719,7 @@
       document.getElementById('sWali').value = wali;
       document.getElementById('sFotoUrlLama').value = foto || '';
       document.getElementById('sFotoFile').value = '';
-      document.getElementById('sFotoPreview').src = DEFAULT_FOTO;
+      document.getElementById('sFotoPreview').src = foto || DEFAULT_FOTO;
       toggleModal('modalSiswa');
     }
 
@@ -727,72 +752,43 @@
     async function loadRekap() {
       const startTgl = document.getElementById('filterStart').value;
       const endTgl = document.getElementById('filterEnd').value;
-      const filterKelasVal = document.getElementById('filterKelas').value;
+      const kelasSelect = document.getElementById('filterKelas').value;
 
-      const res = await callApi({ action: 'getAbsensiData' });
+      const res = await callApi({ 
+        action: 'getRekapData', 
+        startDate: startTgl, 
+        endDate: endTgl,
+        kelas: kelasSelect
+      });
+
       if (res && res.success) {
+        currentRekapData = res.data;
         const tbody = document.getElementById('rekapTableBody');
         tbody.innerHTML = '';
-        currentRekapData = [];
 
-        // Dynamic Populate Opsi Kelas di Dropdown Filter
-        const classSelect = document.getElementById('filterKelas');
-        const setKelas = new Set();
-
-        res.data.forEach(r => {
-          if (r[6]) setKelas.add(r[6]); // r[6] = Kolom Kelas
-        });
-
-        const selectedKelas = classSelect.value;
-        classSelect.innerHTML = '<option value="">Semua Kelas</option>';
-        Array.from(setKelas).sort().forEach(k => {
-          classSelect.innerHTML += `<option value="${k}" ${String(k) === String(selectedKelas) ? 'selected' : ''}>Kelas ${k}</option>`;
-        });
-
-        // Loop Filter Data Absensi
-        res.data.forEach(r => {
-          let tglStr = "";
-          try {
-            tglStr = new Date(r[2]).toISOString().split('T')[0];
-          } catch(e) {
-            tglStr = String(r[2]);
-          }
-
-          const jamStr = formatJamDisplay(r[3]);
-          const nisn = r[4];
-          const nama = r[5];
-          const kelas = r[6];
-          const status = r[7];
-
-          // Validasi Rentang Tanggal
-          const matchStart = !startTgl || tglStr >= startTgl;
-          const matchEnd = !endTgl || tglStr <= endTgl;
-          // Validasi Kelas
-          const matchKelas = !filterKelasVal || String(kelas) === String(filterKelasVal);
-
-          if (matchStart && matchEnd && matchKelas) {
-            const rowData = { tgl: tglStr, jam: jamStr, nisn, nama, kelas, status };
-            currentRekapData.push(rowData);
-
-            tbody.innerHTML += `
-              <tr class="border-b hover:bg-gray-50">
-                <td class="p-3">${tglStr}</td>
-                <td class="p-3">${jamStr}</td>
-                <td class="p-3">${nisn}</td>
-                <td class="p-3 font-semibold">${nama}</td>
-                <td class="p-3">${kelas}</td>
-                <td class="p-3"><span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">${status}</span></td>
-              </tr>`;
-          }
-        });
-
-        if (currentRekapData.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 text-sm">Tidak ada data absensi pada periode/kelas ini.</td></tr>`;
+        if (res.data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400">Tidak ada data rekap absensi.</td></tr>`;
+          return;
         }
+
+        res.data.forEach(r => {
+          tbody.innerHTML += `
+            <tr class="border-b hover:bg-gray-50">
+              <td class="p-3 text-xs text-gray-600">${r[0]}</td>
+              <td class="p-3 text-xs font-mono">${formatJamDisplay(r[1])}</td>
+              <td class="p-3 font-mono text-xs font-bold text-gray-700">${r[2]}</td>
+              <td class="p-3 font-semibold">${r[3]}</td>
+              <td class="p-3 text-xs">${r[4]}</td>
+              <td class="p-3">
+                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                  ${r[5] || 'Hadir'}
+                </span>
+              </td>
+            </tr>`;
+        });
       }
     }
 
-    // RESET FILTER REKAP
     function resetFilterRekap() {
       document.getElementById('filterStart').value = '';
       document.getElementById('filterEnd').value = '';
@@ -800,61 +796,47 @@
       loadRekap();
     }
 
-    // EKSPOR LAPORAN KE EXCEL/CSV
     function downloadRekapExcel() {
-      if (currentRekapData.length === 0) {
-        alert("Tidak ada data rekap yang dapat diunduh.");
+      if (!currentRekapData || currentRekapData.length === 0) {
+        alert("Tidak ada data rekap untuk diunduh!");
         return;
       }
 
-      let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
-      csvContent += "Tanggal,Jam,NISN,Nama,Kelas,Status\n";
-
+      let csvContent = "data:text/csv;charset=utf-8,Tanggal,Jam,NISN,Nama,Kelas,Status\n";
       currentRekapData.forEach(row => {
-        csvContent += `"${row.tgl}","${row.jam}","'${row.nisn}","${row.nama}","${row.kelas}","${row.status}"\n`;
+        let rowStr = [
+          `"${row[0] || ''}"`,
+          `"${formatJamDisplay(row[1])}"`,
+          `"${row[2] || ''}"`,
+          `"${row[3] || ''}"`,
+          `"${row[4] || ''}"`,
+          `"${row[5] || 'Hadir'}"`
+        ].join(",");
+        csvContent += rowStr + "\n";
       });
 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
-      
-      const start = document.getElementById('filterStart').value || 'Awal';
-      const end = document.getElementById('filterEnd').value || 'Akhir';
-      const kelas = document.getElementById('filterKelas').value ? `_Kelas_${document.getElementById('filterKelas').value}` : '';
-
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Laporan_Absensi_${start}_s.d_${end}${kelas}.csv`);
+      link.setAttribute("download", `Rekap_Absensi_${new Date().toISOString().slice(0,10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     }
 
-    // MODALS
-    function toggleModal(id) {
-      document.getElementById(id).classList.toggle('hidden');
-    }
-
+    // SIMPAN PENGATURAN PROFIL
     async function saveSettings(e) {
       e.preventDefault();
       const logo = document.getElementById('setLogo').value;
       const pass = document.getElementById('setPass').value;
-      
-      const res = await callApi({ action: 'updateProfile', logo: logo, pass: pass });
+
+      const res = await callApi({ action: 'updateSettings', logo: logo, password: pass });
       if (res && res.success) {
+        alert("Pengaturan berhasil disimpan.");
         toggleModal('modalSettings');
-        initApp();
+      } else {
+        alert("Gagal menyimpan pengaturan.");
       }
-    }
-
-    function zoomFoto(urlSrc) {
-      if (!urlSrc || urlSrc.includes('placeholder')) return;
-      const modal = document.getElementById('modalZoomFoto');
-      const imgTarget = document.getElementById('imgZoomTarget');
-      imgTarget.src = urlSrc;
-      modal.classList.remove('hidden');
-    }
-
-    function tutupZoomFoto() {
-      document.getElementById('modalZoomFoto').classList.add('hidden');
     }
   </script>
 </body>
